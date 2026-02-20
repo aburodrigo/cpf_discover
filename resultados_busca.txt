@@ -1,6 +1,5 @@
 Alvo procurado: Rodrigo Carvalho
-Total de CPFs testados: 1
-CPFs encontrados: 1
+Total de CPFs encontrados: 0
 ============================================================
 
-CPF: 17832400757 - Status: ENCONTRADO
+Nenhum CPF encontrado para o alvo procurado.

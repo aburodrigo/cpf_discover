@@ -38,4 +38,3 @@ if os.path.isfile('cpfvalido.txt'):
     print("Arquivo 'cpfvalido.txt' criado com sucesso!")
 else:
     print("Erro ao criar o arquivo.")
-

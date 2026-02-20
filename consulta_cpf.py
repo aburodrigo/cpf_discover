@@ -1,8 +1,41 @@
 #Automação para testar CPFs válidos no JusBrasil
 
 from playwright.sync_api import sync_playwright
-import time
 import os
+import json
+import time
+
+def banner_cpf_discover():
+    # Códigos de cores ANSI
+    VERMELHO = '\033[91m'
+    VERMELHO_NEGRITO = '\033[1;91m'
+    VERMELHO_CLARO = '\033[91m'
+    RESET = '\033[0m'
+    
+    banner = f"""
+{VERMELHO_NEGRITO}    ╔══════════════════════════════════════════════════════════════════╗{RESET}
+{VERMELHO_NEGRITO}    ║                                                                  ║{RESET}
+{VERMELHO_NEGRITO}    ║                     ██████╗██████╗ ███████╗                     ║{RESET}
+{VERMELHO_NEGRITO}    ║                     ██╔════╝██╔══██╗██╔════╝                     ║{RESET}
+{VERMELHO_NEGRITO}    ║                     ██║     ██████╔╝█████╗                       ║{RESET}
+{VERMELHO_NEGRITO}    ║                     ██║     ██╔═══╝ ██╔══╝                       ║{RESET}
+{VERMELHO_NEGRITO}    ║                     ╚██████╗██║     ██║                          ║{RESET}
+{VERMELHO_NEGRITO}    ║                      ╚═════╝╚═╝     ╚═╝                          ║{RESET}
+{VERMELHO_NEGRITO}    ║                                                                  ║{RESET}
+{VERMELHO_NEGRITO}    ║                    ⚡ DISCOVER v1.0 ⚡                           ║{RESET}
+{VERMELHO_NEGRITO}    ║              Descoberta e Verificação de CPFs                   ║{RESET}
+{VERMELHO_NEGRITO}    ║                                                                  ║{RESET}
+{VERMELHO_NEGRITO}    ╠══════════════════════════════════════════════════════════════════╣{RESET}
+{VERMELHO}    ║                                                                  ║{RESET}
+{VERMELHO}    ║                 developed by: aburodrigo                         ║{RESET}
+{VERMELHO}    ║                                                                  ║{RESET}
+{VERMELHO_NEGRITO}    ╚══════════════════════════════════════════════════════════════════╝{RESET}
+    """
+    print(banner)
+
+# Chamar o banner
+banner_cpf_discover()
+
 
 # Solicitar informações do alvo 
 primeiro_nome = input("Digite o primeiro nome que deseja procurar: ").strip()
@@ -26,79 +59,145 @@ if not cpfs:
 
 print(f"Total de CPFs para testar: {len(cpfs)}\n")
 
-# Armazenar resultados
-resultados = []
+# Carregar checkpoint anterior (se existir)
+checkpoint_file = "checkpoint.json"
+if os.path.exists(checkpoint_file):
+    with open(checkpoint_file, "r") as f:
+        checkpoint = json.load(f)
+    indice_inicial = checkpoint.get("indice", 0)
+    resultados = checkpoint.get("resultados", [])
+    print(f"✓ Retomando do CPF índice {indice_inicial + 1}")
+else:
+    indice_inicial = 0
+    resultados = []
+
+def salvar_checkpoint(indice, resultados):
+    """Salva o ponto de parada e resultados até o momento"""
+    with open(checkpoint_file, "w") as f:
+        json.dump({"indice": indice, "resultados": resultados}, f)
+
+def salvar_resultados_parcial(resultados, primeiro_nome, ultimo_nome):
+    """Salva apenas os resultados encontrados no arquivo final"""
+    # Filtrar apenas os CPFs encontrados
+    resultados_encontrados = [r for r in resultados if r[3]]
+    
+    with open("resultados_busca.txt", "w", encoding="utf-8") as f:
+        f.write(f"Alvo procurado: {primeiro_nome} {ultimo_nome}\n")
+        f.write(f"Total de CPFs encontrados: {len(resultados_encontrados)}\n")
+        f.write("="*60 + "\n\n")
+        
+        if resultados_encontrados:
+            for cpf, nome, sobre, encontrado in resultados_encontrados:
+                f.write(f"CPF: {cpf} - Nome encontrado: {nome} {sobre}\n")
+        else:
+            f.write("Nenhum CPF encontrado para o alvo procurado.\n")
 
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=False)
     page = browser.new_page()
-    page.goto("https://www.jusbrasil.com.br")
-    page.wait_for_load_state("networkidle")
+    page.goto("https://www.jusbrasil.com.br", wait_until="domcontentloaded")
 
-    for idx, cpf in enumerate(cpfs, 1):
-        print(f"[{idx}/{len(cpfs)}] Testando CPF: {cpf}")
+    primeiro_nome_lower = primeiro_nome.lower()
+    ultimo_nome_lower = ultimo_nome.lower()
+    
+    consultas_neste_lote = 0
+    max_consultas_por_lote = 5
+
+    idx = indice_inicial
+    encontrado = False
+    
+    while idx < len(cpfs) and not encontrado:
+        cpf = cpfs[idx]
+        numero_exibicao = idx + 1
+        
+        print(f"[{numero_exibicao}/{len(cpfs)}] Testando CPF: {cpf}")
         
         try:
-            # Garantir que estamos na página inicial e que o campo de busca está disponível
-            page.wait_for_load_state("networkidle")
-            searchbox = page.get_by_role("searchbox", name="Digite um CPF, CNPJ, nome ou")
-            searchbox.wait_for(timeout=5000)
-
             # Preencher o CPF e submeter
-            searchbox.fill("")
-            searchbox.fill(cpf)
+            searchbox = page.get_by_role("searchbox", name="Digite um CPF, CNPJ, nome ou")
+            searchbox.fill(cpf, timeout=3000)
             searchbox.press("Enter")
 
-            # Aguardar navegação ou carregamento de resultados
-            page.wait_for_load_state("networkidle")
-            time.sleep(1)
+            # Aguardar carregamento de resultados (mais rápido)
+            page.wait_for_load_state("domcontentloaded", timeout=8000)
 
-            # Obter texto da página para verificar se contém os nomes
-            content = page.content().lower()
-            nome_procurado = f"{primeiro_nome} {ultimo_nome}".lower()
-
-            # Verificar se encontrou o alvo
-            if primeiro_nome.lower() in content and ultimo_nome.lower() in content:
+            # Verificar se encontrou o alvo usando um método mais rápido
+            try:
+                page.wait_for_selector("text=" + primeiro_nome, timeout=2000)
                 resultado = f"✓ ENCONTRADO - CPF: {cpf} - Nome: {primeiro_nome} {ultimo_nome}"
                 print(resultado)
                 resultados.append((cpf, primeiro_nome, ultimo_nome, True))
-            else:
-                print(f"✗ Não encontrado - CPF: {cpf}")
-                resultados.append((cpf, primeiro_nome, ultimo_nome, False))
+                encontrado = True
+            except:
+                # Se não encontrou, verificar no texto rapidamente
+                text_content = page.text_content("body").lower()
+                if primeiro_nome_lower in text_content and ultimo_nome_lower in text_content:
+                    resultado = f"✓ ENCONTRADO - CPF: {cpf} - Nome: {primeiro_nome} {ultimo_nome}"
+                    print(resultado)
+                    resultados.append((cpf, primeiro_nome, ultimo_nome, True))
+                    encontrado = True
+                else:
+                    print(f"✗ Não encontrado - CPF: {cpf}")
+                    resultados.append((cpf, primeiro_nome, ultimo_nome, False))
 
-            # Após cada busca, garantir que retornamos à página inicial para a próxima iteração
-            try:
-                page.goto("https://www.jusbrasil.com.br")
-                page.wait_for_load_state("networkidle")
-                time.sleep(0.5)
-            except Exception:
-                # Se não conseguir navegar, tentar recarregar
-                try:
-                    page.reload()
-                    page.wait_for_load_state("networkidle")
-                    time.sleep(0.5)
-                except Exception:
-                    pass
+            # Retornar à página inicial de forma mais rápida
+            page.goto("https://www.jusbrasil.com.br", wait_until="domcontentloaded")
+            
+            consultas_neste_lote += 1
+            idx += 1
+            
+            # Se encontrou o alvo, parar imediatamente
+            if encontrado:
+                print("\n" + "="*60)
+                print("✓ ALVO ENCONTRADO! Encerrando busca...")
+                print("="*60 + "\n")
+                break
+            
+            # Verificar se atingiu o limite de consultas
+            if consultas_neste_lote >= max_consultas_por_lote and idx < len(cpfs):
+                # Salvar checkpoint
+                salvar_checkpoint(idx, resultados)
+                salvar_resultados_parcial(resultados, primeiro_nome, ultimo_nome)
+                
+                # Fechar navegador e fazer pausa
+                browser.close()
+                
+                tempo_pausa = 5  # 5 segundos de pausa
+                print("\n" + "="*60)
+                print(f"⏸️  PAUSA APÓS 5 CONSULTAS")
+                print(f"✓ Processados: {idx} de {len(cpfs)} CPFs")
+                print(f"✓ Próximo CPF será: {cpfs[idx]} (índice {idx + 1})")
+                print(f"⏳ Aguardando {tempo_pausa} segundos para retomar...")
+                print("="*60 + "\n")
+                
+                time.sleep(tempo_pausa)
+                
+                # Reiniciar navegador para nova sessão
+                browser = p.chromium.launch(headless=False)
+                page = browser.new_page()
+                page.goto("https://www.jusbrasil.com.br", wait_until="domcontentloaded")
+                
+                # Resetar contador
+                consultas_neste_lote = 0
             
         except Exception as e:
             print(f"✗ Erro ao testar CPF {cpf}: {str(e)}")
             resultados.append((cpf, primeiro_nome, ultimo_nome, False))
+            idx += 1
     
     # Fechar navegador
     browser.close()
 
-# Salvar resultados em arquivo
-with open("resultados_busca.txt", "w", encoding="utf-8") as f:
-    f.write(f"Alvo procurado: {primeiro_nome} {ultimo_nome}\n")
-    f.write(f"Total de CPFs testados: {len(cpfs)}\n")
-    f.write(f"CPFs encontrados: {sum(1 for r in resultados if r[3])}\n")
-    f.write("="*60 + "\n\n")
-    
-    for cpf, nome, sobre, encontrado in resultados:
-        status = "ENCONTRADO" if encontrado else "NÃO ENCONTRADO"
-        f.write(f"CPF: {cpf} - Status: {status}\n")
+# Salvar resultados finais
+salvar_resultados_parcial(resultados, primeiro_nome, ultimo_nome)
+
+# Remover checkpoint se todos os CPFs foram testados
+if os.path.exists(checkpoint_file):
+    os.remove(checkpoint_file)
 
 print("\n" + "="*60)
-print("Automação concluída!")
-print(f"Resultados salvos em 'resultados_busca.txt'")
+print("✓ Automação concluída!")
+print(f"✓ Total processado: {len(resultados)} CPFs")
+print(f"✓ Encontrados: {sum(1 for r in resultados if r[3])}")
+print(f"✓ Resultados salvos em 'resultados_busca.txt'")
 print("="*60)
