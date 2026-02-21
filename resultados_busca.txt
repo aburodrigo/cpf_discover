@@ -1,5 +1,3 @@
-Alvo procurado: Pessoa Aleatoria
-Total de CPFs encontrados: 1
-============================================================
-
-CPF: 00523400339 - Nome encontrado: Pessoa Aleatoria
+Alvo: Jeffrey Epstein
+Total encontrados: 0
+========================================
