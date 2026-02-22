@@ -3,16 +3,14 @@ from playwright.sync_api import sync_playwright
 import os
 import json
 import time
+import re
 
 # ================= CONFIGURAÇÕES INICIAIS =================
-MODO_ESCONDIDO = False
+MODO_ESCONDIDO = True
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 # ==========================================================
 
 def banner_cpf_discover():
-    # Supondo que MODO_ESCONDIDO esteja definido globalmente
-    MODO_ESCONDIDO = True  # Exemplo
-    
     # Códigos de cores ANSI
     BRANCO = '\033[97m'
     VERMELHO = '\033[91m'
@@ -70,11 +68,24 @@ def salvar_checkpoint(indice, resultados):
         json.dump({"indice": indice, "resultados": resultados}, f)
 
 def salvar_resultados_parcial(resultados, primeiro_nome, ultimo_nome):
-    resultados_encontrados = [r for r in resultados if r[3]]
+    encontrados_completo = [r for r in resultados if r[3] == 'completo']
+    encontrados_primeiro = [r for r in resultados if r[3] == 'primeiro']
     with open("resultados_busca.txt", "w", encoding="utf-8") as f:
-        f.write(f"Alvo: {primeiro_nome} {ultimo_nome}\nTotal encontrados: {len(resultados_encontrados)}\n" + "="*40 + "\n")
-        for cpf, nome, sobre, encontrado in resultados_encontrados:
-            f.write(f"CPF: {cpf} - Nome: {nome} {sobre}\n")
+        f.write(f"Alvo: {primeiro_nome} {ultimo_nome}\n")
+        f.write(f"Total (primeiro+último): {len(encontrados_completo)}\n")
+        f.write(f"Total (primeiro apenas): {len(encontrados_primeiro)}\n" + "="*40 + "\n")
+
+        if encontrados_completo:
+            f.write("Encontrados (primeiro + último):\n")
+            for cpf, nome, sobre, tipo in encontrados_completo:
+                f.write(f"CPF: {cpf} - Nome: {nome} {sobre}\n")
+            f.write("-"*40 + "\n")
+
+        if encontrados_primeiro:
+            f.write("Encontrados (primeiro apenas):\n")
+            for cpf, nome, sobre, tipo in encontrados_primeiro:
+                f.write(f"CPF: {cpf} - Nome: {nome} {sobre}\n")
+            f.write("-"*40 + "\n")
 
 with sync_playwright() as p:
     # O parâmetro headless agora é dinâmico
@@ -118,15 +129,22 @@ with sync_playwright() as p:
             page.wait_for_load_state("networkidle", timeout=10000)
 
             try:
-                # Busca rápida no conteúdo textual da página
+                # Busca rápida no conteúdo textual da página (correspondência por palavra)
                 body_text = page.inner_text("body").lower()
-                if primeiro_nome_lower in body_text and ultimo_nome_lower in body_text:
-                    print(f"✅ ENCONTRADO - CPF: {cpf}")
-                    resultados.append((cpf, primeiro_nome, ultimo_nome, True))
+                # procurar correspondências usando regex com limites de palavra para maior precisão
+                found_first = bool(re.search(r"\b" + re.escape(primeiro_nome_lower) + r"\b", body_text))
+                found_last = bool(re.search(r"\b" + re.escape(ultimo_nome_lower) + r"\b", body_text))
+
+                if found_first and found_last:
+                    print(f"✅ ENCONTRADO (primeiro+último) - CPF: {cpf}")
+                    resultados.append((cpf, primeiro_nome, ultimo_nome, 'completo'))
                     encontrado = True
+                elif found_first:
+                    print(f"ℹ️ Encontrado (primeiro apenas) - CPF: {cpf}")
+                    resultados.append((cpf, primeiro_nome, ultimo_nome, 'primeiro'))
                 else:
                     print(f"❌ Não encontrado")
-                    resultados.append((cpf, primeiro_nome, ultimo_nome, False))
+                    resultados.append((cpf, primeiro_nome, ultimo_nome, 'none'))
             except:
                 resultados.append((cpf, primeiro_nome, ultimo_nome, False))
 
