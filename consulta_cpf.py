@@ -5,9 +5,8 @@ import time
 import re
 from playwright.sync_api import sync_playwright
 
-# ================= FUNÇÃO DO BANNER =================
+# ================= FUNÇÃO DO BANNER (MANTIDA ORIGINAL) =================
 def exibir_banner(modo_headless, arquivo):
-    # Limpa o terminal antes de exibir
     os.system('cls' if os.name == 'nt' else 'clear')
     
     BRANCO = '\033[97m'
@@ -20,15 +19,15 @@ def exibir_banner(modo_headless, arquivo):
     banner = f"""
 {VERMELHO_NEGRITO}    ╔══════════════════════════════════════════════════════════════════╗{RESET}
 {VERMELHO_NEGRITO}    ║                                                                  ║{RESET}
-{VERMELHO_NEGRITO}    ║             ██████╗ ██████╗ ███████╗                             ║{RESET}
-{VERMELHO_NEGRITO}    ║             ██╔════╝ ██╔══██╗██╔════╝                            ║{RESET}
-{VERMELHO_NEGRITO}    ║             ██║      ██████╔╝█████╗                              ║{RESET}
-{VERMELHO_NEGRITO}    ║             ██║      ██╔═══╝ ██╔══╝                              ║{RESET}
-{VERMELHO_NEGRITO}    ║             ██████╗  ██║     ██║                                 ║{RESET}
-{VERMELHO_NEGRITO}    ║              ╚═════╝ ╚═╝     ╚═╝                                 ║{RESET}
+{VERMELHO_NEGRITO}    ║              ██████╗ ██████╗ ███████╗                            ║{RESET}
+{VERMELHO_NEGRITO}    ║              ██╔════╝ ██╔══██╗██╔════╝                           ║{RESET}
+{VERMELHO_NEGRITO}    ║              ██║      ██████╔╝█████╗                             ║{RESET}
+{VERMELHO_NEGRITO}    ║              ██║      ██╔═══╝ ██╔══╝                             ║{RESET}
+{VERMELHO_NEGRITO}    ║              ██████╗  ██║     ██║                                ║{RESET}
+{VERMELHO_NEGRITO}    ║               ╚═════╝ ╚═╝     ╚═╝                                ║{RESET}
 {VERMELHO_NEGRITO}    ║                                                                  ║{RESET}
 {VERMELHO_NEGRITO}    ║                      DISCOVER v2.5                               ║{RESET}
-{VERMELHO_NEGRITO}    ║              Descoberta e Verificação de CPFs                    ║{RESET}
+{VERMELHO_NEGRITO}    ║               Developed by: aburodrigo                           ║{RESET}
 {VERMELHO_NEGRITO}    ╠══════════════════════════════════════════════════════════════════╣{RESET}
 {VERMELHO}    ║ Headless: {status_hl.ljust(50)} {RESET}      {VERMELHO}       ║{RESET}
 {VERMELHO}    ║ Arquivo: {str(arquivo).ljust(51)}     ║{RESET}
@@ -36,43 +35,34 @@ def exibir_banner(modo_headless, arquivo):
     """
     print(banner)
 
-# CONFIG DE ARGUMENTOS 
+# CONFIG DE ARGUMENTOS
 parser = argparse.ArgumentParser(description="CPF Discover - Busca de CPF por parâmetros.")
-
-# Parâmetros
-parser.add_argument("-f", "--file", required=True, help="Arquivo .txt com a lista de CPFs (um por linha)")
+parser.add_argument("-f", "--file", required=True, help="Arquivo .txt com a lista de CPFs")
 parser.add_argument("-n", "--name", required=True, help="Primeiro nome do alvo")
-parser.add_argument("-s", "--surname", required=True, help="Último nome (sobrenome) do alvo")
-
-# Parâmetro opcional para o Headless (Padrão é True)
-parser.add_argument("--visual", action="store_false", dest="headless", 
-                    help="Desativa o modo headless (abre a janela do navegador)")
+parser.add_argument("-s", "--surname", required=True, nargs='+', help="Sobrenome completo do alvo")
+parser.add_argument("--visual", action="store_false", dest="headless", help="Desativa o modo headless")
 parser.set_defaults(headless=True)
 
 args = parser.parse_args()
 
-# ================= INÍCIO DO SCRIPT =================
-
-# 1. Exibir o banner imediatamente com os dados coletados
+# ================= TRATAMENTO DOS INPUTS =================
 exibir_banner(args.headless, args.file)
 
-# Validação do arquivo
 if not os.path.exists(args.file):
-    print(f"❌ ERRO: O arquivo '{args.file}' não foi encontrado na pasta.")
+    print(f"❌ ERRO: O arquivo '{args.file}' não foi encontrado.")
     exit()
 
-# Variáveis globais baseadas nos parâmetros
+primeiro_nome = args.name.strip()
+sobrenome_completo = " ".join(args.surname).strip()
+nome_alvo_completo = f"{primeiro_nome} {sobrenome_completo}".lower()
+
 MODO_ESCONDIDO = args.headless
 ARQUIVO_ENTRADA = args.file
-primeiro_nome = args.name
-ultimo_nome = args.surname
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
-# Carregar CPFs
 with open(ARQUIVO_ENTRADA, "r", encoding="utf-8") as f:
     cpfs = [cpf.strip() for cpf in f.readlines() if cpf.strip()]
 
-# Lógica de Checkpoint
 checkpoint_file = "checkpoint.json"
 if os.path.exists(checkpoint_file):
     with open(checkpoint_file, "r") as f:
@@ -88,12 +78,13 @@ def salvar_checkpoint(indice, resultados):
         json.dump({"indice": indice, "resultados": resultados}, f)
 
 def salvar_resultados_parcial(resultados, p_nome, u_nome):
-    encontrados_completo = [r for r in resultados if r[3] == 'completo']
     with open("resultados_busca.txt", "w", encoding="utf-8") as f:
         f.write(f"Busca realizada para: {p_nome} {u_nome}\n" + "="*40 + "\n")
-        if encontrados_completo:
-            for cpf, nome, sobre, tipo in encontrados_completo:
-                f.write(f"CPF: {cpf} - Nome: {nome} {sobre}\n")
+        for cpf, nome, sobre, tipo in resultados:
+            if tipo == 'completo':
+                f.write(f"✅ [NOME ENCONTRADO] CPF: {cpf} - Nome: {nome} {sobre}\n")
+            elif tipo == 'parcial':
+                f.write(f"⚠️ [PARCIAL]  CPF: {cpf} - Encontrado apenas: {nome}\n")
 
 # ================= EXECUÇÃO PLAYWRIGHT =================
 
@@ -110,56 +101,81 @@ with sync_playwright() as p:
     navegar_inicial()
 
     idx = indice_inicial
-    encontrado = False
     lote_count = 0
 
-    print(f"🚀 Buscando por: {primeiro_nome} {ultimo_nome}...\n")
+    print(f"🚀 Buscando por: {nome_alvo_completo.upper()}...\n")
 
-    while idx < len(cpfs) and not encontrado:
+    while idx < len(cpfs):
         cpf = cpfs[idx]
-        print(f"[{idx + 1}/{len(cpfs)}] Testando CPF: {cpf}")
+        print(f"[{idx + 1}/{len(cpfs)}] Analisando CPF: {cpf}")
         
         try:
+            # Busca o CPF
             searchbox = page.wait_for_selector('input[name="q"], input[type="search"]', timeout=10000)
             searchbox.fill(cpf)
             searchbox.press("Enter")
+            
+            # Espera o carregamento dos resultados
             page.wait_for_load_state("networkidle", timeout=10000)
+            time.sleep(2.5) 
 
+            # 1. Verificação rápida (Body text)
             body_text = page.inner_text("body").lower()
-            found_first = bool(re.search(r"\b" + re.escape(primeiro_nome.lower()) + r"\b", body_text))
-            found_last = bool(re.search(r"\b" + re.escape(ultimo_nome.lower()) + r"\b", body_text))
+            
+            if primeiro_nome.lower() in body_text:
+                print(f"🔎 Primeiro nome detectado. Iniciando varredura de Divs...")
+                
+                # 2. VALIDAÇÃO DE DIVS (Varre todos os elementos que costumam conter nomes)
+                # Buscamos o texto completo dentro de divs, headers e spans
+                found_full_name = False
+                elements = page.query_selector_all('div, h1, h2, h3, span')
+                
+                for el in elements:
+                    try:
+                        texto_elemento = el.inner_text().lower()
+                        # Verifica se o nome completo que você inputou aparece dentro de algum desses elementos
+                        if nome_alvo_completo in texto_elemento:
+                            found_full_name = True
+                            break
+                    except:
+                        continue
 
-            if found_first and found_last:
-                print(f"✅ CPF CORRESPONDENTE: {cpf}")
-                resultados.append((cpf, primeiro_nome, ultimo_nome, 'completo'))
-                encontrado = True
+                if found_full_name:
+                    print(f"✅ SUCESSO: Nome completo encontrado nas Divs: {cpf}")
+                    resultados.append((cpf, primeiro_nome, sobrenome_completo, 'completo'))
+                else:
+                    print(f"⚠️ Nome parcial detectado, mas sobrenome não bateu.")
+                    resultados.append((cpf, primeiro_nome, sobrenome_completo, 'parcial'))
             else:
-                resultados.append((cpf, primeiro_nome, ultimo_nome, 'none'))
+                pass # Nenhum match
 
+            # Reinicia para o próximo CPF
             navegar_inicial()
             idx += 1
             lote_count += 1
             
+            # Gerenciamento de Memória/Sessão (Lotes de 5)
             if lote_count >= 5:
                 salvar_checkpoint(idx, resultados)
-                salvar_resultados_parcial(resultados, primeiro_nome, ultimo_nome)
+                salvar_resultados_parcial(resultados, primeiro_nome, sobrenome_completo)
                 context.close()
-                time.sleep(3)
+                time.sleep(2)
                 context = browser.new_context(user_agent=USER_AGENT)
                 page = context.new_page()
                 navegar_inicial()
                 lote_count = 0
 
-        except Exception:
+        except Exception as e:
             navegar_inicial()
             idx += 1
 
     browser.close()
 
 # Finalização
-salvar_resultados_parcial(resultados, primeiro_nome, ultimo_nome)
+salvar_resultados_parcial(resultados, primeiro_nome, sobrenome_completo)
 if os.path.exists(checkpoint_file): os.remove(checkpoint_file)
 
 print("\n" + "="*40)
 print("✓ Automação finalizada.")
+print(f"✓ Resultados salvos em 'resultados_busca.txt'")
 print("="*40)
