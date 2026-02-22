@@ -1,34 +1,32 @@
-# CPF Discover — Discovery v2.x
+# CPF Discover — DISCOVER v2.5
 
-Automação para gerar listas de CPFs válidos e buscar associações de nomes via buscas no JusBrasil.
+Automação simples para gerar listas de CPFs válidos e buscar possíveis associações de nomes através de buscas públicas (ex.: JusBrasil).
 
-## 📋 Descrição
+## Visão geral
 
-O repositório contém dois scripts principais:
+Este repositório contém dois scripts principais:
 
-- `gerar_cpfs.py` — Gera uma lista de CPFs válidos (arquivo `cpfvalido.txt`).
-- `consulta_cpf.py` — Usa Playwright para automatizar buscas por CPF e verificar se um nome (primeiro e último) aparece na página.
+- `gerar_cpfs.py`: gera CPFs válidos a partir de 6 dígitos centrais fornecidos pelo usuário e grava em `cpfvalido.txt`.
+- `consulta_cpf.py`: automatiza buscas usando Playwright para verificar se um determinado nome aparece em páginas retornadas pela busca do CPF.
 
-Estrutura do projeto:
+Estrutura típica do projeto:
 
-```
-E:\Scripts_Python\cpf_discover\
-├── consulta_cpf.py
-├── gerar_cpfs.py
-├── requirements.txt
-├── cpfvalido.txt            # gerado por gerar_cpfs.py
-├── resultados_busca.txt     # gerado por consulta_cpf.py
-├── checkpoint.json          # gerado por consulta_cpf.py durante execução
-└── README.md
-```
+E:/Scripts_Python/cpf_discover/
+- consulta_cpf.py
+- gerar_cpfs.py
+- requirements.txt
+- cpfvalido.txt            # gerado por `gerar_cpfs.py`
+- resultados_busca.txt     # gerado por `consulta_cpf.py`
+- checkpoint.json          # gerado por `consulta_cpf.py` durante execução
+- README.md
 
 ## Requisitos
 
 - Python 3.7+
-- Dependências listadas em `requirements.txt` (por exemplo, `playwright>=1.40.0`).
-- Navegador Chromium (instalável via Playwright).
+- Dependências: listadas em `requirements.txt` (usa `playwright`).
+- Navegador Chromium para uso com Playwright (`playwright install chromium`).
 
-Instalação rápida:
+Instalação básica:
 
 ```bash
 python -m pip install -r requirements.txt
@@ -39,7 +37,7 @@ playwright install chromium
 
 1) Gerar CPFs válidos
 
-O script `gerar_cpfs.py` solicita ao usuário os 6 dígitos centrais do CPF e gera 1.000 variações (prefixos 000–999), calculando os dígitos verificadores e salvando em `cpfvalido.txt`.
+O script `gerar_cpfs.py` pede ao usuário os 6 dígitos centrais do CPF (ex.: `807728`) e gera variações com prefixos `000`–`999`, calculando os dígitos verificadores e salvando cada CPF válido em `cpfvalido.txt`.
 
 Executar:
 
@@ -47,50 +45,55 @@ Executar:
 python gerar_cpfs.py
 ```
 
-2) Consultar CPFs
+2) Consultar CPFs (automação)
 
-O script `consulta_cpf.py` aceita argumentos via linha de comando:
+`consulta_cpf.py` recebe parâmetros pela linha de comando:
 
-- `-f` ou `--file` (obrigatório): caminho para o arquivo de CPFs (ex.: `cpfvalido.txt`)
-- `-n` ou `--name` (obrigatório): primeiro nome a procurar
-- `-s` ou `--surname` (obrigatório): sobrenome a procurar
-- `--visual` (opcional): se passado, desativa o modo headless e abre a janela do navegador (padrão: headless ligado)
+- `-f, --file` (obrigatório): arquivo com CPFs (ex.: `cpfvalido.txt`)
+- `-n, --name` (obrigatório): primeiro nome a procurar
+- `-s, --surname` (obrigatório): sobrenome(s) (pode ser composto)
+- `--visual` (opcional): desativa headless e mostra o navegador (por padrão o script roda headless)
 
 Exemplo:
 
 ```bash
-python consulta_cpf.py -f cpfvalido.txt -n Joao -s Silva --visual
+python consulta_cpf.py -f cpfvalido.txt -n Joao -s Silva
+python consulta_cpf.py -f cpfvalido.txt -n Maria -s "da Silva" --visual
 ```
 
-Comportamento importante:
+Comportamento resumido:
 
-- O script lê CPFs do arquivo informado e faz buscas no site https://www.jusbrasil.com.br.
-- Para cada CPF a página é pesquisada; se o texto da página contiver o primeiro e o último nome (busca case-insensitive), o CPF é marcado como `completo`.
-- Ao encontrar um CPF correspondente, a execução termina (o primeiro resultado completo interrompe a busca).
-- Há um sistema de checkpoint (`checkpoint.json`) que salva o índice atual e resultados parciais para retomar a execução.
-- O código reinicia o contexto do navegador a cada 5 buscas para reduzir chance de bloqueio.
+- O script abre o site `https://www.jusbrasil.com.br`, realiza busca pelo CPF e verifica o texto da página.
+- Se o primeiro nome aparecer na página, o script faz uma varredura por elementos (`div`, `h1`, `h2`, `h3`, `span`) procurando o nome completo informado.
+- Resultados são categorizados como `completo` (nome completo encontrado) ou `parcial` (apenas o primeiro nome detectado).
+- O script grava resultados parciais em `resultados_busca.txt` e mantém um `checkpoint.json` com o índice atual para retomar execuções interrompidas.
+- A cada 5 buscas o contexto do navegador é reiniciado para reduzir risco de bloqueio.
 
-Arquivos de saída:
+## Arquivos gerados
 
-- `cpfvalido.txt` — CPFs gerados por `gerar_cpfs.py` (um por linha).
-- `resultados_busca.txt` — CPFs encontrados para o nome pesquisado.
-- `checkpoint.json` — usado internamente para retomar uma execução interrompida.
+- `cpfvalido.txt`: lista de CPFs (um por linha) gerada por `gerar_cpfs.py`.
+- `resultados_busca.txt`: resultados da busca para o nome informado.
+- `checkpoint.json`: checkpoint com índice e resultados parciais para retomar.
 
-## Notas de implementação
+## Observações e boas práticas
 
-- `consulta_cpf.py` usa Playwright (síncrono) e cria um `browser.new_context` com `user_agent` e `viewport` definidos.
-- O parâmetro `--visual` no CLI inverte o comportamento padrão (`headless=True` por padrão). Para ver o navegador, passe `--visual`.
-- `gerar_cpfs.py` executa interativamente e grava `cpfvalido.txt`.
+- Respeite os Termos de Uso e leis locais ao executar buscas automatizadas.
+- Executar muitas buscas em sequência pode levar a bloqueios; use `--visual` para testes e monitore o tráfego.
+- Ajuste tempos e tratamentos de exceção conforme necessário (o script já realiza reabertura de contexto a cada 5 buscas).
 
-## Boas práticas e avisos
+## Troubleshooting rápido
 
-- Verifique os Termos de Uso do site consultado antes de executar buscas automatizadas.
-- Use com responsabilidade e em conformidade com leis de privacidade e proteção de dados.
+- Se receber erros do Playwright, confirme que instalou os browsers: `playwright install chromium`.
+- Se o script não encontra o arquivo, verifique o caminho passado em `-f`.
 
-## Como contribuir
+## Contribuição
 
-- Abra uma issue para discutir mudanças.
-- Envie pull requests para correções e melhorias.
+- Abra issues para bugs ou melhorias.
+- Pull requests são bem-vindos.
+
+---
+
+Desenvolvido por: aburodrigo — use com responsabilidade. 
 
 
 
