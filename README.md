@@ -86,10 +86,10 @@ Antes de executar `consulta_cpf.py`, você deve abrir o Chrome com CDP ativo:
 
 ```bash
 # No Windows (PowerShell ou CMD)
-chrome.exe --remote-debugging-port=9222
+C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="C:\chrome_temp_profile
 
 # No Linux/macOS
-google-chrome --remote-debugging-port=9222
+pasta_do_chrome/google-chrome --remote-debugging-port=9222
 ```
 
 Ou, se usar Chromium:

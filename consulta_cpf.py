@@ -3,6 +3,7 @@ import os
 import json
 import time
 import random
+os.environ["NODE_NO_WARNINGS"] = "1"
 from playwright.sync_api import sync_playwright
 
 # ================= FUNÇÃO DO BANNER =================
