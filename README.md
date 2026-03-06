@@ -1,99 +1,186 @@
 # CPF Discover — DISCOVER v2.5
 
-Automação simples para gerar listas de CPFs válidos e buscar possíveis associações de nomes através de buscas públicas (ex.: JusBrasil).
+Automação profissional para gerar listas de CPFs válidos e realizar buscas de associações de nomes através de integrações automatizadas com navegadores reais. Utiliza **CDP (Chrome DevTools Protocol)** para máxima evasão de detecção.
+
+## ⚠️ DISCLAIMER LEGAL
+
+**Este projeto é fornecido exclusivamente para fins legais e éticamente responsáveis.** 
+
+O uso desta ferramenta está condicionado ao cumprimento total das leis aplicáveis, incluindo mas não limitado a:
+- Leis de proteção de dados e privacidade (Lei Geral de Proteção de Dados - LGPD)
+- Termos de Serviço das plataformas utilizadas (JusBrasil, Google, etc.)
+- Legislação relacionada a acesso não autorizado de sistemas
+- Leis contra fraude e roubo de identidade
+
+**Os desenvolvedores deste projeto NÃO SE RESPONSABILIZAM por:**
+- Uso inadequado, ilegal ou não ético desta ferramenta
+- Violação de leis, regulamentações ou direitos de terceiros
+- Danos causados pelo uso indevido, incluindo processos legais
+- Bloqueios, banimentos ou consequências por detecção em plataformas
+
+Ao utilizar este código, você assume total responsabilidade legal pelas suas ações. Use apenas com consentimento explícito e para propósitos legítimos e autorizados.
 
 ## Visão geral
 
 Este repositório contém dois scripts principais:
 
-- `gerar_cpfs.py`: gera CPFs válidos a partir de 6 dígitos centrais fornecidos pelo usuário e grava em `cpfvalido.txt`.
-- `consulta_cpf.py`: automatiza buscas usando Playwright para verificar se um determinado nome aparece em páginas retornadas pela busca do CPF.
+- **`gerar_cpfs.py`**: Gera CPFs válidos a partir de 6 dígitos centrais fornecidos pelo usuário. Calcula os dígitos verificadores de forma correta e salva uma lista de 1000 variações em `cpfvalido.txt`.
+- **`consulta_cpf.py`**: Automatiza buscas utilizando Playwright conectado a um Chrome real via CDP. Verifica se um nome específico aparece nos resultados das buscas de CPF no JusBrasil, com detecção de correspondências completas e parciais.
 
-Estrutura típica do projeto:
+Estrutura do projeto:
 
+```
 E:/Scripts_Python/cpf_discover/
-- consulta_cpf.py
-- gerar_cpfs.py
-- requirements.txt
-- cpfvalido.txt            # gerado por `gerar_cpfs.py`
-- resultados_busca.txt     # gerado por `consulta_cpf.py`
-- checkpoint.json          # gerado por `consulta_cpf.py` durante execução
-- README.md
+├── consulta_cpf.py          # Script de consulta via CDP
+├── gerar_cpfs.py            # Gerador de CPFs válidos
+├── requirements.txt         # Dependências Python
+├── README.md                # Este arquivo
+├── cpfvalido.txt            # Gerado por gerar_cpfs.py
+├── resultados_busca.txt     # Gerado por consulta_cpf.py
+├── checkpoint.json          # Checkpoint de execução (automático)
+└── __pycache__/             # Cache Python
+```
 
 ## Requisitos
 
-- Python 3.7+
-- Dependências: listadas em `requirements.txt` (usa `playwright`).
-- Navegador Chromium para uso com Playwright (`playwright install chromium`).
+- **Python 3.7+**
+- **Dependências**: Playwright (veja `requirements.txt`)
+- **Navegador Chrome/Chromium**: Deve estar instalado e executável
+- **Chrome com CDP ativo**: Para `consulta_cpf.py`, requer Chrome aberto com suporte CDP na porta 9222
 
-Instalação básica:
+### Instalação
 
 ```bash
+# Instalar dependências
 python -m pip install -r requirements.txt
+
+# Instalar Chromium (se necessário)
 playwright install chromium
 ```
 
 ## Uso
 
-1) Gerar CPFs válidos
+### 1. Gerar CPFs válidos
 
-O script `gerar_cpfs.py` pede ao usuário os 6 dígitos centrais do CPF (ex.: `807728`) e gera variações com prefixos `000`–`999`, calculando os dígitos verificadores e salvando cada CPF válido em `cpfvalido.txt`.
+O script `gerar_cpfs.py` solicita os 6 dígitos centrais de um CPF e gera uma lista de 1000 CPFs válidos (com prefixos de `000` a `999`), calculando corretamente os dois dígitos verificadores.
 
-Executar:
+**Executar:**
 
 ```bash
 python gerar_cpfs.py
 ```
 
-2) Consultar CPFs (automação)
+**Entrada esperada:**
+```
+Digite os seis dígitos centrais do CPF (ex: 807728): 807728
+```
 
-`consulta_cpf.py` recebe parâmetros pela linha de comando:
+**Saída:**
+- Arquivo `cpfvalido.txt` com 1000 CPFs válidos (um por linha)
 
-- `-f, --file` (obrigatório): arquivo com CPFs (ex.: `cpfvalido.txt`)
-- `-n, --name` (obrigatório): primeiro nome a procurar
-- `-s, --surname` (obrigatório): sobrenome(s) (pode ser composto)
-- `--visual` (opcional): desativa headless e mostra o navegador (por padrão o script roda headless)
+### 2. Consultar CPFs (automação via CDP)
 
-Exemplo:
+**⚠️ PRÉ-REQUISITO IMPORTANTE:**
+
+Antes de executar `consulta_cpf.py`, você deve abrir o Chrome com CDP ativo:
+
+```bash
+# No Windows (PowerShell ou CMD)
+chrome.exe --remote-debugging-port=9222
+
+# No Linux/macOS
+google-chrome --remote-debugging-port=9222
+```
+
+Ou, se usar Chromium:
+```bash
+chromium --remote-debugging-port=9222
+```
+
+**Parâmetros de linha de comando:**
+
+- `-f, --file` **(obrigatório)**: Caminho do arquivo com CPFs (ex: `cpfvalido.txt`)
+- `-n, --name` **(obrigatório)**: Primeiro nome a procurar
+- `-s, --surname` **(obrigatório)**: Sobrenome(s) (pode ser composto)
+
+**Exemplos:**
 
 ```bash
 python consulta_cpf.py -f cpfvalido.txt -n Joao -s Silva
-python consulta_cpf.py -f cpfvalido.txt -n Maria -s "da Silva" --visual
+python consulta_cpf.py -f cpfvalido.txt -n Maria -s "da Silva Oliveira"
+python consulta_cpf.py -f cpfvalido.txt -n Pedro -s "dos Santos"
 ```
 
-Comportamento resumido:
+### Comportamento da automação
 
-- O script abre o site `https://www.jusbrasil.com.br`, realiza busca pelo CPF e verifica o texto da página.
-- Se o primeiro nome aparecer na página, o script faz uma varredura por elementos (`div`, `h1`, `h2`, `h3`, `span`) procurando o nome completo informado.
-- Resultados são categorizados como `completo` (nome completo encontrado) ou `parcial` (apenas o primeiro nome detectado).
-- O script grava resultados parciais em `resultados_busca.txt` e mantém um `checkpoint.json` com o índice atual para retomar execuções interrompidas.
-- A cada 5 buscas o contexto do navegador é reiniciado para reduzir risco de bloqueio.
+1. **Conecta via CDP**: O script se conecta ao Chrome aberto numa porta específica (9222), sem abrir um navegador adicional.
+2. **Simula comportamento humano**: 
+   - Movimento natural do mouse com variação aleatória
+   - Digitação lenta e realista (60-250ms entre caracteres)
+   - Scroll aleatório e variável nas páginas
+   - Tempos de espera naturais entre ações
+3. **Busca estruturada**:
+   - Navega para Google.com.br e JusBrasil.com.br (comportamento de usuário real)
+   - Realiza busca pelo CPF
+   - Verifica se o primeiro nome aparece no texto da página
+   - Se encontrado, procura pelo nome completo em elementos específicos (`div`, `h1`, `h2`, `h3`, `span`)
+4. **Categorização de resultados**:
+   - ✅ **COMPLETO**: Nome e sobrenome encontrados
+   - ⚠️ **PARCIAL**: Apenas o primeiro nome detectado
+5. **Sistema de checkpoint e retomada**:
+   - Salva progresso a cada 5 CPFs em `checkpoint.json`
+   - Permite retomar execução interrompida automaticamente
+   - Gera `resultados_busca.txt` com os achados
+6. **Proteção contra bloqueios**:
+   - A cada 5 buscas, aguarda 6-11 segundos ("esfriando a conexão")
+   - Reinicia navegação para reduzir risco de detecção
+   - Trata exceções e timeouts gracefully
 
 ## Arquivos gerados
 
-- `cpfvalido.txt`: lista de CPFs (um por linha) gerada por `gerar_cpfs.py`.
-- `resultados_busca.txt`: resultados da busca para o nome informado.
-- `checkpoint.json`: checkpoint com índice e resultados parciais para retomar.
+- **`cpfvalido.txt`**: Lista de CPFs válidos (1000 linhas), um por linha
+- **`resultados_busca.txt`**: Resultados da busca (nomes encontrados com status completo/parcial)
+- **`checkpoint.json`**: Backup automático do progresso (índice atual + resultados parciais)
+
+## Recursos técnicos
+
+- **Playwright**: Automação de navegador com suporte a CDP
+- **CDP (Chrome DevTools Protocol)**: Conexão direta ao Chrome sem emulação robótica
+- **Simulação de comportamento humano**: Delays variáveis, scroll aleatório, movimento de mouse
+- **Tratamento robusto de erros**: Timeout handling, retomada de execução
 
 ## Observações e boas práticas
 
-- Respeite os Termos de Uso e leis locais ao executar buscas automatizadas.
-- Executar muitas buscas em sequência pode levar a bloqueios; use `--visual` para testes e monitore o tráfego.
-- Ajuste tempos e tratamentos de exceção conforme necessário (o script já realiza reabertura de contexto a cada 5 buscas).
+- 🔒 **Responsabilidade legal**: Respeite os Termos de Uso do JusBrasil e leis locais
+- ⚖️ **Privacidade**: Use apenas para propósitos legítimos e éticos
+- 🛡️ **Detecção**: Para testes, monitore o navegador e o tráfego; ajuste timings se necessário
+- ⏱️ **Performance**: A automatização é intencionalesta lenta para evitar bloqueios
+- ✏️ **Customização**: Todos os delays, seletores e timeouts podem ser ajustados no código
 
-## Troubleshooting rápido
+## Troubleshooting
 
-- Se receber erros do Playwright, confirme que instalou os browsers: `playwright install chromium`.
-- Se o script não encontra o arquivo, verifique o caminho passado em `-f`.
+| Erro | Solução |
+|------|---------|
+| "Não foi possível conectar ao Chrome" | Abra o Chrome com `--remote-debugging-port=9222` |
+| "Arquivo não encontrado" | Verifique o caminho do arquivo com `-f` |
+| "Erro no Playwright" | Execute `playwright install chromium` |
+| "Bloqueio de IP/detecção" | Aumente os delays no código ou aguarde antes de nova execução |
+| Execução interrompida | Execute novamente; o `checkpoint.json` retomará de onde parou |
 
-## Contribuição
+## Desenvolvimento
 
-- Abra issues para bugs ou melhorias.
-- Pull requests são bem-vindos.
+- Linguagem: Python 3.7+
+- Dependências principais: `playwright`
+- Estrutura modular com funções bem definidas
+- Suporte a checkpoint e retomada automática
 
 ---
 
-Desenvolvido por: aburodrigo — use com responsabilidade. 
+**Desenvolvido por:** aburodrigo
+
+**Versão:** 2.5 — Modo CDP (Máxima Evasão)
+
+⚠️ **Use com responsabilidade e respeito às leis aplicáveis.** 
 
 
 
